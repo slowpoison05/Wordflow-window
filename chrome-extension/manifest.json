@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "WordFlow Browser",
+  "version": "1.0.0",
+  "description": "Write clipboard text into supported webpage fields using WordFlow.",
+  "permissions": ["contextMenus", "activeTab", "scripting", "storage", "offscreen", "clipboardRead"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "WordFlow settings", "default_popup": "popup.html" }
+}
