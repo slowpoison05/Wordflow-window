@@ -42,3 +42,18 @@ Text is inserted through the Windows clipboard and Ctrl+V. The destination must 
 - Some elevated/admin apps, secure fields, games, or applications that block simulated input may reject insertion.
 - Avoid switching target windows during automatic insertion. Test first in Notepad.
 - PyAutoGUI and Pyperclip are the only runtime dependencies.
+
+
+## Use WordFlow directly in Chrome or Edge
+
+A browser extension is included in `chrome-extension/`. It adds a **WordFlow** submenu to the right-click menu on editable webpage fields, with Write All in Character Mode, Write All in Word Mode, current mode, and Stop commands.
+
+1. Open `chrome://extensions` (Chrome) or `edge://extensions` (Edge).
+2. Enable **Developer mode**.
+3. Click **Load unpacked** and select this repository's `chrome-extension` folder.
+4. Copy your text, right-click in a webpage text field, then choose **WordFlow → Write All in Character Mode** or **Word Mode**.
+5. Use the WordFlow toolbar icon to set the default mode and Fast / Normal / Slow speed.
+
+The extension reads clipboard text only after you choose a WordFlow menu command. If clipboard reading is unavailable, paste text into the extension popup's fallback box and save it. See [the browser extension guide](chrome-extension/README.md).
+
+**Limitations:** Chrome/Edge controls the context-menu layout, so WordFlow's exact position relative to Copy/Paste can vary. Some secure pages, browser UI, cross-origin frames, and custom editors may reject script-based input. The extension is separate from the Python desktop app and has not yet been verified in a live browser session.
