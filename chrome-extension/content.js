@@ -30,7 +30,7 @@ chrome.runtime.onMessage.addListener(message => {
   if (!wordFlowEditable(target)) { wordFlowStatus("Right-click inside an editable webpage field first."); return; }
   const id = ++wordFlowRun;
   const text = String(message.text || "");
-  const chunks = message.mode === "word" ? (text.match(/\\S+\\s*/g) || []) : Array.from(text);
+  const chunks = message.mode === "word" ? (text.match(/\S+\s*/g) || []) : Array.from(text);
   const delay = message.speed === "fast" ? 35 : message.speed === "slow" ? 300 : 120;
   let i = 0;
   wordFlowStatus("WordFlow writing…");
