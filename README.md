@@ -1,30 +1,44 @@
 # WordFlow for Windows
 
-A Windows desktop companion to the WordFlow Android keyboard, built with Python and Tkinter.
+A Windows desktop companion to the WordFlow Android keyboard, built with Python and Tkinter. The Windows project is separate from the Android app.
 
 ## Features
-- On-screen QWERTY keyboard with Shift, Backspace, Space, Enter, numbers and symbol pages.
-- Extra symbols page: `~ ` | • √ π ÷ × § ∆ € ¥ $ ¢ ^ ° = { } % © ® ™ ✓ [ ] < >`.
-- Load clipboard text, then insert the next word or character.
-- Previous, Skip, Reset and Write All controls.
+
+- Resizable dark desktop interface with a large on-screen QWERTY keyboard.
+- Shift, Backspace, Space, Enter, emoji shortcut, number page and extended symbol page.
+- Extra symbols: ~, backtick, |, •, √, π, ÷, ×, §, ∆, €, ¥, $, ¢, ^, °, =, { }, %, ©, ®, ™, ✓, [ ], < >.
+- Explicit Load clipboard action; choose Word or Character mode.
+- Previous, Next, Skip, Reset, and Write All / Stop controls.
 - Fast, Normal and Slow automatic insertion speeds.
-- Dark, resizable desktop UI.
+- Word mode preserves punctuation and whitespace attached to words.
+- Text is handled locally; no account, server, or network service is required.
 
-## Run
-1. Install Python 3.10 or newer from https://www.python.org/downloads/windows/ (enable **Add Python to PATH**).
+## Run from source
+
+1. Install Python 3.10 or newer from https://www.python.org/downloads/windows/ and enable Add Python to PATH.
 2. Open this folder in Command Prompt or PowerShell.
-3. Run `python -m pip install -r requirements.txt`.
-4. Run `python wordflow.py`.
+3. Run: python -m pip install -r requirements.txt
+4. Run: python wordflow.py
 
-Or double-click `run-wordflow.bat`.
+Or double-click run-wordflow.bat to install dependencies and start the app.
+
+## Build a Windows executable
+
+Double-click build-exe.bat. It installs PyInstaller and creates dist\WordFlow.exe. Build it on Windows; the generated executable is not committed to this repository.
 
 ## How text insertion works
-Click **Arm target**, then switch to the application where you want to type within 5 seconds. WordFlow remembers that target window. Clicking a keyboard key or using Next/Write All pastes text into that target using the Windows clipboard and Ctrl+V. The target application must allow normal paste/input.
 
-**Privacy:** Clipboard text is processed locally by the app and is not uploaded to a server. Loading clipboard text is explicit. Do not load sensitive clipboard contents unless you intend to type them.
+1. Open the destination app and click Arm target in WordFlow.
+2. WordFlow minimizes for four seconds. Click the destination app or its text field while it is minimized.
+3. WordFlow captures the active window and restores itself.
+4. Load clipboard text, then use the on-screen keys, Next, or Write All.
 
-## Notes
+Text is inserted through the Windows clipboard and Ctrl+V. The destination must permit normal paste/input. Automatic insertion can be stopped with Stop.
+
+## Privacy and limitations
+
+- Clipboard text is read only after you explicitly choose Load clipboard. It stays on your device and is not uploaded.
 - This is a desktop typing companion, not a replacement for the Windows system-wide keyboard or a signed Windows IME.
-- Some elevated/admin apps, secure fields, games, or applications that block simulated input may not accept insertion.
-- Use Stop to cancel Write All. Avoid switching target windows during automatic insertion.
-- The app uses standard Python libraries plus PyAutoGUI for keyboard shortcut automation.
+- Some elevated/admin apps, secure fields, games, or applications that block simulated input may reject insertion.
+- Avoid switching target windows during automatic insertion. Test first in Notepad.
+- PyAutoGUI and Pyperclip are the only runtime dependencies.
