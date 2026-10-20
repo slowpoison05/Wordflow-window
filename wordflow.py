@@ -1,7 +1,6 @@
+import re
 import tkinter as tk
 from tkinter import messagebox
-import threading
-import time
 
 try:
     import pyautogui
@@ -10,179 +9,168 @@ except ImportError:
     pyautogui = None
     pyperclip = None
 
-BG = "#171a21"
-PANEL = "#222733"
-KEY = "#303847"
-KEY_HOVER = "#414d61"
-ACCENT = "#6ea8fe"
-TEXT = "#f2f5fa"
-MUTED = "#aab4c5"
+BG, PANEL, KEY = "#171a21", "#222733", "#303847"
+HOVER, ACCENT, TEXT, MUTED = "#414d61", "#6ea8fe", "#f2f5fa", "#aab4c5"
+SUCCESS = "#8ee0b6"
 
 
 class WordFlowApp:
+    """Windows desktop companion for the WordFlow Android keyboard."""
+
     def __init__(self, root):
         self.root = root
-        self.root.title("WordFlow Keyboard")
-        self.root.geometry("1000x570")
-        self.root.minsize(760, 500)
-        self.root.configure(bg=BG)
-        self.root.attributes("-topmost", True)
-
+        root.title("WordFlow Keyboard")
+        root.geometry("1080x650")
+        root.minsize(800, 570)
+        root.configure(bg=BG)
+        root.attributes("-topmost", True)
         self.source_text = ""
         self.words = []
-        self.word_index = 0
-        self.char_index = 0
-        self.character_mode = False
-        self.shifted = False
-        self.symbol_page = 0
-        self.speed = 0
+        self.word_index = self.char_index = 0
+        self.character_mode = self.shifted = False
+        self.symbol_page = self.speed = 0
         self.target_window = None
+        self.write_job = None
         self.running = False
-        self.stop_event = threading.Event()
-
         self.build_ui()
-        self.refresh_status()
+        self.refresh_status("Ready. Arm a target app, then load text.")
 
-    def button(self, parent, label, command, *, bg=KEY, fg=TEXT, height=1):
+    def button(self, parent, label, command, bg=KEY, fg=TEXT, size=10):
         b = tk.Button(parent, text=label, command=command, bg=bg, fg=fg,
-                      activebackground=KEY_HOVER, activeforeground=TEXT,
-                      relief="flat", bd=0, cursor="hand2", font=("Segoe UI", 10),
-                      padx=8, pady=7, height=height)
-        b.bind("<Enter>", lambda _e: b.configure(bg=KEY_HOVER) if bg == KEY else None)
+                      activebackground=HOVER, activeforeground=TEXT, relief="flat",
+                      bd=0, cursor="hand2", font=("Segoe UI", size), padx=9, pady=8)
+        b.bind("<Enter>", lambda _e: b.configure(bg=HOVER) if bg == KEY else None)
         b.bind("<Leave>", lambda _e: b.configure(bg=bg))
         return b
 
     def build_ui(self):
         header = tk.Frame(self.root, bg=BG)
-        header.pack(fill="x", padx=14, pady=(12, 5))
+        header.pack(fill="x", padx=16, pady=(12, 6))
         tk.Label(header, text="WordFlow", bg=BG, fg=TEXT,
-                 font=("Segoe UI", 19, "bold")).pack(side="left")
+                 font=("Segoe UI", 21, "bold")).pack(side="left")
         tk.Label(header, text="WINDOWS KEYBOARD", bg=BG, fg=MUTED,
-                 font=("Segoe UI", 9, "bold")).pack(side="left", padx=12, pady=(8, 0))
+                 font=("Segoe UI", 9, "bold")).pack(side="left", padx=12, pady=(9, 0))
         self.target_label = tk.Label(header, text="Target: not armed", bg=BG, fg=MUTED,
                                      font=("Segoe UI", 9))
         self.target_label.pack(side="right", padx=6)
 
         controls = tk.Frame(self.root, bg=PANEL)
-        controls.pack(fill="x", padx=14, pady=5)
-        self.button(controls, "Arm target (select app)", self.arm_target, bg=ACCENT, fg="#101722").pack(side="left", padx=5, pady=6)
-        self.button(controls, "Load clipboard", self.load_clipboard).pack(side="left", padx=4, pady=6)
-        self.mode_button = self.button(controls, "Mode: Word", self.toggle_mode)
-        self.mode_button.pack(side="left", padx=4, pady=6)
-        self.button(controls, "Previous", self.previous).pack(side="left", padx=4, pady=6)
-        self.button(controls, "Next", self.next_item).pack(side="left", padx=4, pady=6)
-        self.button(controls, "Skip", self.skip).pack(side="left", padx=4, pady=6)
-        self.button(controls, "Reset", self.reset).pack(side="left", padx=4, pady=6)
-        self.write_button = self.button(controls, "▶ Write All", self.start_stop, bg="#315f50")
-        self.write_button.pack(side="left", padx=4, pady=6)
-        self.speed_button = self.button(controls, "Speed: Fast", self.cycle_speed)
-        self.speed_button.pack(side="left", padx=4, pady=6)
+        controls.pack(fill="x", padx=16, pady=5)
+        actions = [
+            ("Arm target", self.arm_target, ACCENT, "#101722"),
+            ("Load clipboard", self.load_clipboard, KEY, TEXT),
+            ("Mode: Word", self.toggle_mode, KEY, TEXT),
+            ("Previous", self.previous, KEY, TEXT), ("Next", self.next_item, KEY, TEXT),
+            ("Skip", self.skip, KEY, TEXT), ("Reset", self.reset, KEY, TEXT),
+            ("Write All", self.start_stop, "#315f50", TEXT),
+            ("Speed: Fast", self.cycle_speed, KEY, TEXT),
+        ]
+        self.action_buttons = {}
+        for label, command, bg, fg in actions:
+            b = self.button(controls, label, command, bg, fg)
+            b.pack(side="left", padx=3, pady=6)
+            self.action_buttons[label] = b
+        self.mode_button = self.action_buttons["Mode: Word"]
+        self.write_button = self.action_buttons["Write All"]
+        self.speed_button = self.action_buttons["Speed: Fast"]
 
         preview = tk.Frame(self.root, bg=PANEL)
-        preview.pack(fill="x", padx=14, pady=(5, 8))
-        self.status = tk.Label(preview, text="Ready. Arm a target app, then load text.", bg=PANEL, fg=MUTED,
-                               anchor="w", font=("Segoe UI", 10))
-        self.status.pack(fill="x", padx=10, pady=(8, 2))
-        self.preview = tk.Label(preview, text="Clipboard preview appears here.", bg=PANEL, fg=TEXT,
-                                anchor="w", justify="left", wraplength=930, font=("Consolas", 11))
-        self.preview.pack(fill="x", padx=10, pady=(2, 9))
-
+        preview.pack(fill="x", padx=16, pady=(5, 8))
+        self.status = tk.Label(preview, text="", bg=PANEL, fg=MUTED, anchor="w",
+                               font=("Segoe UI", 10))
+        self.status.pack(fill="x", padx=12, pady=(8, 2))
+        self.preview = tk.Label(preview, text="Load clipboard text to begin.", bg=PANEL,
+                                fg=TEXT, anchor="w", justify="left", wraplength=1000,
+                                font=("Consolas", 11))
+        self.preview.pack(fill="x", padx=12, pady=(2, 9))
         self.keyboard = tk.Frame(self.root, bg=BG)
-        self.keyboard.pack(fill="both", expand=True, padx=14, pady=(0, 8))
+        self.keyboard.pack(fill="both", expand=True, padx=16)
         self.render_keyboard()
-
         tk.Label(self.root, text="Text stays on this device • Use only where normal input/paste is permitted",
-                 bg=BG, fg=MUTED, font=("Segoe UI", 8)).pack(pady=(0, 7))
+                 bg=BG, fg=MUTED, font=("Segoe UI", 8)).pack(pady=(5, 2))
+        # Extra breathing room below the keys, matching the Android layout request.
+        tk.Frame(self.root, bg=BG, height=20).pack(fill="x")
+
+    def add_row(self, keys, inset=0):
+        frame = tk.Frame(self.keyboard, bg=BG)
+        frame.pack(fill="x", padx=inset, pady=3)
+        for label, command in keys:
+            self.button(frame, label, command, size=11).pack(
+                side="left", fill="both", expand=True, padx=2, ipady=3)
 
     def render_keyboard(self):
         for child in self.keyboard.winfo_children():
             child.destroy()
         if self.symbol_page == 0:
-            rows = ["qwertyuiop", "asdfghjkl", "⇧zxcvbnm⌫"]
-            for row_index, row in enumerate(rows):
-                frame = tk.Frame(self.keyboard, bg=BG)
-                frame.pack(fill="x", pady=3)
-                if row_index == 1:
-                    frame.pack_configure(padx=32)
-                for ch in row:
-                    if ch == "⇧":
-                        label, action, width = "⇧ Shift", self.toggle_shift, 1.5
-                    elif ch == "⌫":
-                        label, action, width = "⌫", self.backspace, 1.5
-                    else:
-                        label = ch.upper() if self.shifted else ch
-                        action, width = (lambda c=ch: self.insert_text(c.upper() if self.shifted else c)), 1
-                    b = self.button(frame, label, action)
-                    b.pack(side="left", fill="both", expand=True, padx=2)
-            frame = tk.Frame(self.keyboard, bg=BG)
-            frame.pack(fill="x", pady=3)
-            keys = [
-                ("?123", self.show_numbers, 1.2), (",", lambda: self.insert_text(","), .7),
-                ("☺", lambda: self.insert_text("😊"), .7), ("Space", lambda: self.insert_text(" "), 4),
-                (".", lambda: self.insert_text("."), .7), ("Enter", lambda: self.insert_text("\n"), 1.2)
-            ]
+            for i, letters in enumerate(("qwertyuiop", "asdfghjkl", "zxcvbnm")):
+                keys = []
+                if i == 2:
+                    keys.append(("⇧ Shift", self.toggle_shift))
+                for ch in letters:
+                    keys.append((ch.upper() if self.shifted else ch,
+                                 lambda c=ch: self.insert_text(c.upper() if self.shifted else c)))
+                if i == 2:
+                    keys.append(("⌫ Backspace", self.backspace))
+                self.add_row(keys, inset=22 if i == 1 else 0)
+            self.add_row([
+                ("?123", self.show_numbers), (",", lambda: self.insert_text("<" if self.shifted else ",")),
+                ("☺", lambda: self.insert_text("😊")), ("Space", lambda: self.insert_text(" ")),
+                (".", lambda: self.insert_text(">" if self.shifted else ".")),
+                ("Enter", lambda: self.insert_text("\n")),
+            ])
         elif self.symbol_page == 1:
-            rows = ["1234567890", "@#$%&-+()/", "*\"':;!?"]
-            for row in rows:
-                frame = tk.Frame(self.keyboard, bg=BG)
-                frame.pack(fill="x", pady=3)
-                for ch in row:
-                    b = self.button(frame, ch, lambda c=ch: self.insert_text(c))
-                    b.pack(side="left", fill="both", expand=True, padx=2)
-            frame = tk.Frame(self.keyboard, bg=BG)
-            frame.pack(fill="x", pady=3)
-            keys = [("ABC", self.show_letters, 1.2), ("More symbols", self.show_extra, 1.5),
-                    (",", lambda: self.insert_text(","), .7), ("Space", lambda: self.insert_text(" "), 4),
-                    (".", lambda: self.insert_text("."), .7), ("Enter", lambda: self.insert_text("\n"), 1.2)]
+            for row in ("1234567890", "@#$%&-+()/", "*\\\"':;!?"):
+                self.add_row([(ch, lambda c=ch: self.insert_text(c)) for ch in row])
+            self.add_row([
+                ("ABC", self.show_letters), ("More symbols", self.show_extra),
+                (",", lambda: self.insert_text(",")), ("Space", lambda: self.insert_text(" ")),
+                (".", lambda: self.insert_text(".")), ("Enter", lambda: self.insert_text("\n")),
+            ])
         else:
-            rows = ["~`|•√π÷×§∆", "€¥$¢^°={}\\", "%©®™✓[]<>"]
+            rows = ("~" + chr(96) + "|•√π÷×§∆", "€¥$¢^°={}\\", "%©®™✓[]<>")
             for row in rows:
-                frame = tk.Frame(self.keyboard, bg=BG)
-                frame.pack(fill="x", pady=3)
-                for ch in row:
-                    b = self.button(frame, ch, lambda c=ch: self.insert_text(c))
-                    b.pack(side="left", fill="both", expand=True, padx=2)
-            frame = tk.Frame(self.keyboard, bg=BG)
-            frame.pack(fill="x", pady=3)
-            keys = [("ABC", self.show_letters, 1.2), ("123", self.show_numbers, 1.2),
-                    (",", lambda: self.insert_text(","), .7), ("Space", lambda: self.insert_text(" "), 4),
-                    (".", lambda: self.insert_text("."), .7), ("Enter", lambda: self.insert_text("\n"), 1.2)]
-        for label, action, weight in keys:
-            b = self.button(frame, label, action)
-            b.pack(side="left", fill="both", expand=True, padx=2)
+                self.add_row([(ch, lambda c=ch: self.insert_text(c)) for ch in row])
+            self.add_row([
+                ("ABC", self.show_letters), ("123", self.show_numbers),
+                (",", lambda: self.insert_text(",")), ("Space", lambda: self.insert_text(" ")),
+                (".", lambda: self.insert_text(".")), ("Enter", lambda: self.insert_text("\n")),
+            ])
 
     def arm_target(self):
         if pyautogui is None:
-            messagebox.showerror("Missing dependency", "Install requirements.txt first.")
+            messagebox.showerror("Missing dependency", "Run run-wordflow.bat to install requirements.")
             return
         self.root.iconify()
-        self.status.configure(text="Click the destination app now. Capturing active window in 4 seconds…")
+        self.refresh_status("Click the destination app now. Capturing active window in 4 seconds…")
         self.root.after(4000, self.capture_target)
 
     def capture_target(self):
         try:
             win = pyautogui.getActiveWindow()
             if win is None or not win.title:
-                raise RuntimeError("No active window detected.")
+                raise RuntimeError("No active window detected. Try again.")
             self.target_window = win
-            self.target_label.configure(text="Target: " + win.title[:36], fg="#8ee0b6")
+            self.target_label.configure(text="Target: " + win.title[:42], fg=SUCCESS)
             self.root.deiconify()
             self.root.attributes("-topmost", True)
-            self.status.configure(text="Target armed. Use keyboard buttons or Next/Write All.")
+            self.refresh_status("Target armed. Use keyboard buttons or Next / Write All.")
         except Exception as exc:
             self.root.deiconify()
-            self.status.configure(text="Could not capture target. Try Arm target again.")
+            self.refresh_status("Could not capture target.")
             messagebox.showwarning("Target not captured", str(exc))
 
     def load_clipboard(self):
         try:
-            self.source_text = self.root.clipboard_get()
+            text = self.root.clipboard_get()
         except tk.TclError:
-            messagebox.showinfo("Clipboard empty", "Copy some text first, then click Load clipboard.")
+            messagebox.showinfo("Clipboard empty", "Copy text first, then click Load clipboard.")
             return
-        self.words = self.source_text.split()
-        self.word_index = 0
-        self.char_index = 0
+        self.source_text = text
+        # Keep whitespace and punctuation with each word so output matches the source.
+        self.words = re.findall(r"\S+\s*", text)
+        if text and text[0].isspace() and self.words:
+            self.words[0] = text[:len(text) - len(text.lstrip())] + self.words[0]
+        self.word_index = self.char_index = 0
         self.refresh_status("Clipboard loaded")
 
     def refresh_status(self, message=None):
@@ -192,28 +180,26 @@ class WordFlowApp:
             current = self.source_text[self.char_index:self.char_index + 1] if self.char_index < total else "—"
         else:
             progress = f"Word {min(self.word_index + 1, len(self.words))}/{len(self.words)}"
-            current = self.words[self.word_index] if self.word_index < len(self.words) else "—"
-        self.status.configure(text=(message + " • " if message else "") + progress)
-        self.preview.configure(text=f"Next: {current!r}     |     Preview: {self.source_text[:180]!r}")
+            current = self.words[self.word_index].strip() if self.word_index < len(self.words) else "—"
+        self.status.configure(text=((message + " • ") if message else "") + progress)
+        self.preview.configure(text=f"Next: {current!r}    |    Preview: {self.source_text[:180]!r}")
         self.mode_button.configure(text="Mode: Character" if self.character_mode else "Mode: Word")
 
     def insert_text(self, text):
         if not text:
             return
         if pyautogui is None or pyperclip is None:
-            messagebox.showerror("Missing dependency", "Install requirements.txt first.")
+            messagebox.showerror("Missing dependency", "Run run-wordflow.bat to install requirements.")
             return
         if self.target_window is None:
-            messagebox.showinfo("Arm target first", "Click Arm target, then select the app where text should be inserted.")
+            messagebox.showinfo("Arm target first", "Click Arm target, then select the destination app.")
             return
         try:
             self.target_window.activate()
-            time.sleep(0.12)
             pyperclip.copy(text)
             pyautogui.hotkey("ctrl", "v")
-            self.root.after(0, self.refresh_status)
         except Exception as exc:
-            self.status.configure(text=f"Insert failed: {exc}")
+            self.refresh_status("Insert failed: " + str(exc))
 
     def next_item(self):
         if self.character_mode:
@@ -226,9 +212,7 @@ class WordFlowApp:
             if self.word_index >= len(self.words):
                 self.refresh_status("End of text")
                 return
-            word = self.words[self.word_index]
-            # Preserve original separators by locating the next token from the cursor.
-            self.insert_text(word + " ")
+            self.insert_text(self.words[self.word_index])
             self.word_index += 1
         self.refresh_status()
 
@@ -247,8 +231,7 @@ class WordFlowApp:
         self.refresh_status("Skipped")
 
     def reset(self):
-        self.word_index = 0
-        self.char_index = 0
+        self.word_index = self.char_index = 0
         self.refresh_status("Reset")
 
     def toggle_mode(self):
@@ -260,13 +243,14 @@ class WordFlowApp:
         self.render_keyboard()
 
     def backspace(self):
-        if pyautogui and self.target_window:
-            try:
-                self.target_window.activate()
-                time.sleep(.1)
-                pyautogui.press("backspace")
-            except Exception as exc:
-                self.status.configure(text=f"Backspace failed: {exc}")
+        if pyautogui is None or self.target_window is None:
+            self.refresh_status("Arm a target app before using Backspace")
+            return
+        try:
+            self.target_window.activate()
+            pyautogui.press("backspace")
+        except Exception as exc:
+            self.refresh_status("Backspace failed: " + str(exc))
 
     def show_letters(self):
         self.symbol_page = 0
@@ -286,42 +270,53 @@ class WordFlowApp:
 
     def start_stop(self):
         if self.running:
-            self.stop_event.set()
-            self.write_button.configure(text="▶ Write All")
-            self.status.configure(text="Stopping…")
+            if self.write_job is not None:
+                self.root.after_cancel(self.write_job)
+                self.write_job = None
+            self.running = False
+            self.write_button.configure(text="Write All")
+            self.refresh_status("Stopped")
             return
         if not self.source_text:
             messagebox.showinfo("No text loaded", "Copy text and click Load clipboard first.")
             return
-        if not self.target_window:
-            messagebox.showinfo("Arm target first", "Arm the target app before writing.")
+        if self.target_window is None:
+            messagebox.showinfo("Arm target first", "Arm the destination app before writing.")
             return
         self.running = True
-        self.stop_event.clear()
         self.write_button.configure(text="■ Stop")
-        threading.Thread(target=self.write_all_worker, daemon=True).start()
+        self.refresh_status("Writing…")
+        self.write_step()
 
-    def write_all_worker(self):
-        delay = [0.18, 0.5, 1.0][self.speed]
-        try:
-            if self.character_mode:
-                while self.char_index < len(self.source_text) and not self.stop_event.is_set():
-                    self.insert_text(self.source_text[self.char_index])
-                    self.char_index += 1
-                    time.sleep(delay)
-            else:
-                while self.word_index < len(self.words) and not self.stop_event.is_set():
-                    self.insert_text(self.words[self.word_index] + " ")
-                    self.word_index += 1
-                    self.root.after(0, self.refresh_status)
-                    time.sleep(delay)
-        finally:
-            self.running = False
-            self.root.after(0, lambda: self.write_button.configure(text="▶ Write All"))
-            self.root.after(0, self.refresh_status)
+    def write_step(self):
+        if not self.running:
+            return
+        if self.character_mode:
+            if self.char_index >= len(self.source_text):
+                self.finish_write("Finished")
+                return
+            text = self.source_text[self.char_index]
+            self.char_index += 1
+        else:
+            if self.word_index >= len(self.words):
+                self.finish_write("Finished")
+                return
+            text = self.words[self.word_index]
+            self.word_index += 1
+        self.insert_text(text)
+        self.refresh_status("Writing…")
+        self.write_job = self.root.after([180, 500, 1000][self.speed], self.write_step)
+
+    def finish_write(self, message):
+        self.running = False
+        self.write_job = None
+        self.write_button.configure(text="Write All")
+        self.refresh_status(message)
 
     def on_close(self):
-        self.stop_event.set()
+        if self.write_job is not None:
+            self.root.after_cancel(self.write_job)
+        self.running = False
         self.root.destroy()
 
 
