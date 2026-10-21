@@ -6,18 +6,59 @@ const MENU = {
   stop: "wordflow-stop"
 };
 
-chrome.runtime.onInstalled.addListener(async () => {
-  await chrome.contextMenus.removeAll();
-  chrome.contextMenus.create({ id: MENU.parent, title: "WordFlow", contexts: ["editable"] });
-  chrome.contextMenus.create({ id: MENU.current, parentId: MENU.parent, title: "Write All (current mode)", contexts: ["editable"] });
-  chrome.contextMenus.create({ id: MENU.character, parentId: MENU.parent, title: "Write All in Character Mode", contexts: ["editable"] });
-  chrome.contextMenus.create({ id: MENU.word, parentId: MENU.parent, title: "Write All in Word Mode", contexts: ["editable"] });
-  chrome.contextMenus.create({ id: MENU.stop, parentId: MENU.parent, title: "Stop Writing", contexts: ["editable"] });
+// Rebuild menus on installation/update and browser startup so they cannot be
+// left missing after an interrupted extension reload.
+async function registerWordFlowMenus() {
+  try {
+    await chrome.contextMenus.removeAll();
+    chrome.contextMenus.create({
+      id: MENU.parent,
+      title: "WordFlow",
+      contexts: ["editable"]
+    });
+    chrome.contextMenus.create({
+      id: MENU.current,
+      parentId: MENU.parent,
+      title: "Write All (current mode)",
+      contexts: ["editable"]
+    });
+    chrome.contextMenus.create({
+      id: MENU.character,
+      parentId: MENU.parent,
+      title: "Write All in Character Mode",
+      contexts: ["editable"]
+    });
+    chrome.contextMenus.create({
+      id: MENU.word,
+      parentId: MENU.parent,
+      title: "Write All in Word Mode",
+      contexts: ["editable"]
+    });
+    chrome.contextMenus.create({
+      id: MENU.stop,
+      parentId: MENU.parent,
+      title: "Stop Writing",
+      contexts: ["editable"]
+    });
+    console.log("WordFlow context menus registered.");
+  } catch (error) {
+    console.error("WordFlow could not register context menus:", error);
+  }
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  void registerWordFlowMenus();
+});
+chrome.runtime.onStartup.addListener(() => {
+  void registerWordFlowMenus();
 });
 
 async function ensureClipboardPage() {
   const url = chrome.runtime.getURL("offscreen.html");
-  const contexts = await chrome.runtime.getContexts({ contextTypes: ["OFFSCREEN_DOCUMENT"], documentUrls: [url] });
+  const contexts = await chrome.runtime.getContexts({
+    contextTypes: ["OFFSCREEN_DOCUMENT"],
+    documentUrls: [url]
+  });
   if (!contexts.length) {
     await chrome.offscreen.createDocument({
       url: "offscreen.html",
@@ -44,7 +85,7 @@ async function sendStatus(tabId, message) {
 async function writeToTab(tabId, modeOverride = null) {
   const settings = await chrome.storage.local.get({ sourceText: "", mode: "character", speed: "normal" });
   const mode = modeOverride || settings.mode;
-  await sendStatus(tabId, "WordFlow shortcut received…");
+  await sendStatus(tabId, "WordFlow command received…");
   let text = "";
   try {
     text = await readClipboard();
@@ -65,11 +106,12 @@ async function writeToTab(tabId, modeOverride = null) {
     });
   } catch (error) {
     console.warn("WordFlow could not start on this tab:", error);
-    await sendStatus(tabId, "WordFlow cannot access this page. Try a normal webpage text field.");
+    await sendStatus(tabId, "WordFlow cannot access this page. Refresh the webpage and try a normal text field.");
   }
 }
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  console.log("WordFlow context menu clicked:", info.menuItemId);
   if (!tab?.id) return;
   if (info.menuItemId === MENU.stop) {
     chrome.tabs.sendMessage(tab.id, { type: "WORDFLOW_STOP" }).catch(() => {});
@@ -94,7 +136,6 @@ chrome.commands.onCommand.addListener(async command => {
     console.error("WordFlow shortcut failed:", error);
   }
 });
-
 
 // Popup fallback: allows testing WordFlow even if Chrome has not assigned the shortcut.
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
