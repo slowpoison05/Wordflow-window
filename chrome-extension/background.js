@@ -94,3 +94,21 @@ chrome.commands.onCommand.addListener(async command => {
     console.error("WordFlow shortcut failed:", error);
   }
 });
+
+
+// Popup fallback: allows testing WordFlow even if Chrome has not assigned the shortcut.
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type !== "WORDFLOW_POPUP_WRITE") return;
+  (async () => {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      if (!tab?.id) throw new Error("No active tab found");
+      await writeToTab(tab.id);
+      sendResponse({ ok: true });
+    } catch (error) {
+      console.error("WordFlow popup write failed:", error);
+      sendResponse({ ok: false, error: String(error?.message || error) });
+    }
+  })();
+  return true;
+});
