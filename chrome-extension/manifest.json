@@ -14,7 +14,7 @@
   "action": { "default_title": "WordFlow settings", "default_popup": "popup.html" },
   "commands": {
     "wordflow-write": {
-      "suggested_key": { "default": "Ctrl+Shift+Y" },
+      "suggested_key": { "default": "Alt+Shift+W" },
       "description": "Write clipboard text using WordFlow mode and speed"
     }
   }
