@@ -1,20 +1,42 @@
 {
   "manifest_version": 3,
   "name": "WordFlow Browser",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Write clipboard text into supported webpage fields using WordFlow.",
-  "permissions": ["contextMenus", "storage", "offscreen", "clipboardRead"],
-  "host_permissions": ["http://*/*", "https://*/*"],
-  "background": { "service_worker": "background.js" },
-  "content_scripts": [{
-    "matches": ["http://*/*", "https://*/*"],
-    "js": ["content.js"],
-    "run_at": "document_idle"
-  }],
-  "action": { "default_title": "WordFlow settings", "default_popup": "popup.html" },
+  "permissions": [
+    "contextMenus",
+    "storage",
+    "offscreen",
+    "clipboardRead"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "WordFlow settings",
+    "default_popup": "popup.html"
+  },
   "commands": {
     "wordflow-write": {
-      "suggested_key": { "default": "Alt+Shift+W" },
+      "suggested_key": {
+        "default": "Alt+Shift+W"
+      },
       "description": "Write clipboard text using WordFlow mode and speed"
     }
   }
