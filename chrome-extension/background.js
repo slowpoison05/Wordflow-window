@@ -22,7 +22,7 @@ async function ensureClipboardPage() {
     await chrome.offscreen.createDocument({
       url: "offscreen.html",
       reasons: ["CLIPBOARD"],
-      justification: "Read clipboard text only after a user invokes WordFlow."
+      justification: "Read clipboard text only after the user explicitly invokes WordFlow."
     });
   }
 }
@@ -33,28 +33,39 @@ async function readClipboard() {
   return typeof response?.text === "string" ? response.text : "";
 }
 
+async function sendStatus(tabId, message) {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "WORDFLOW_STATUS", message });
+  } catch (error) {
+    console.warn("WordFlow could not contact the page content script:", error);
+  }
+}
+
 async function writeToTab(tabId, modeOverride = null) {
   const settings = await chrome.storage.local.get({ sourceText: "", mode: "character", speed: "normal" });
   const mode = modeOverride || settings.mode;
+  await sendStatus(tabId, "WordFlow shortcut received…");
   let text = "";
-  try { text = await readClipboard(); } catch (error) { console.warn("WordFlow clipboard unavailable", error); }
+  try {
+    text = await readClipboard();
+  } catch (error) {
+    console.warn("WordFlow clipboard read failed:", error);
+  }
   if (!text) text = settings.sourceText;
   if (!text) {
-    chrome.tabs.sendMessage(tabId, {
-      type: "WORDFLOW_STATUS",
-      message: "Clipboard is empty. Copy text first, or save fallback text in WordFlow settings."
-    }).catch(() => {});
+    await sendStatus(tabId, "WordFlow started, but clipboard text was unavailable. Save fallback text in the WordFlow toolbar popup.");
     return;
   }
   try {
-    await chrome.tabs.sendMessage(tabId, { type: "WORDFLOW_WRITE", text, mode, speed: settings.speed });
-  } catch {
-    try {
-      await chrome.tabs.sendMessage(tabId, {
-        type: "WORDFLOW_STATUS",
-        message: "WordFlow cannot access this page. Try a normal webpage text field."
-      });
-    } catch {}
+    await chrome.tabs.sendMessage(tabId, {
+      type: "WORDFLOW_WRITE",
+      text,
+      mode,
+      speed: settings.speed
+    });
+  } catch (error) {
+    console.warn("WordFlow could not start on this tab:", error);
+    await sendStatus(tabId, "WordFlow cannot access this page. Try a normal webpage text field.");
   }
 }
 
@@ -70,7 +81,16 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 });
 
 chrome.commands.onCommand.addListener(async command => {
+  console.log("WordFlow command received:", command);
   if (command !== "wordflow-write") return;
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  if (tab?.id) await writeToTab(tab.id);
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (!tab?.id) {
+      console.warn("WordFlow shortcut: no active tab found.");
+      return;
+    }
+    await writeToTab(tab.id);
+  } catch (error) {
+    console.error("WordFlow shortcut failed:", error);
+  }
 });
