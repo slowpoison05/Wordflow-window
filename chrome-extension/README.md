@@ -4,7 +4,7 @@ A Chrome/Edge Manifest V3 companion for the existing WordFlow Windows app. It ad
 
 ## Keyboard shortcut
 
-- Default shortcut: **Ctrl + Shift + Y** (starts Write All using the selected default mode and speed).
+- Default shortcut: **Alt + Shift + W** (starts Write All using the selected default mode and speed).
 - If this shortcut conflicts with another app or browser feature, open `chrome://extensions/shortcuts` (or `edge://extensions/shortcuts`) and assign a different shortcut to **WordFlow Browser**.
 - Focus the destination webpage text field, copy the text, then press the shortcut. You do not need to use right-click.
 
@@ -23,7 +23,7 @@ Choose **Fast**, **Normal**, or **Slow** in the WordFlow toolbar popup. Characte
 2. Open `chrome://extensions` in Chrome or `edge://extensions` in Edge.
 3. Enable **Developer mode**.
 4. Click **Load unpacked** and select the repository's `chrome-extension` folder.
-5. Copy the text you want to type, focus a webpage text field, and press **Ctrl + Shift + Y** to start writing. Or use the right-click menu.
+5. Copy the text you want to type, focus a webpage text field, and press **Alt + Shift + W** to start writing. Or use the right-click menu.
 6. Right-click inside a normal webpage text field and choose **WordFlow → Write All in Character Mode** (or Word Mode).
 7. Click the WordFlow toolbar icon to configure the default mode and speed. If clipboard reading is unavailable on a particular setup, paste the text into the popup's fallback box and save it first.
 
