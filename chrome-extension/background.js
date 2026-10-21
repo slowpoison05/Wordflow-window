@@ -78,11 +78,36 @@ async function sendStatus(tabId, message) {
   try {
     await chrome.tabs.sendMessage(tabId, { type: "WORDFLOW_STATUS", message });
   } catch (error) {
-    console.warn("WordFlow could not contact the page content script:", error);
+    console.warn("WordFlow could not display page status:", error);
+  }
+}
+
+// A tab that was already open when the extension was reloaded may not have
+// the content script. Inject it on demand, then retry messaging.
+async function ensureContentScript(tabId) {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "WORDFLOW_PING" });
+    return true;
+  } catch {
+    // No listener in this tab yet; try injecting the packaged content script.
+  }
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["content.js"]
+    });
+    await chrome.tabs.sendMessage(tabId, { type: "WORDFLOW_PING" });
+    console.log("WordFlow content script injected successfully.");
+    return true;
+  } catch (error) {
+    console.error("WordFlow cannot inject into this tab. Open a normal http/https webpage, refresh it, and try again:", error);
+    return false;
   }
 }
 
 async function writeToTab(tabId, modeOverride = null) {
+  const ready = await ensureContentScript(tabId);
+  if (!ready) return;
   const settings = await chrome.storage.local.get({ sourceText: "", mode: "character", speed: "normal" });
   const mode = modeOverride || settings.mode;
   await sendStatus(tabId, "WordFlow command received…");
